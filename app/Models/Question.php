@@ -15,6 +15,7 @@ class Question extends Model
         'trade_id',
         'quiz_id',
         'question_text',
+        'question_hi',
         'solution',
     ];
 

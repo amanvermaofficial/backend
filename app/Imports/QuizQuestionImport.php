@@ -12,9 +12,6 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
 class QuizQuestionImport implements ToCollection, WithHeadingRow
 {
-    /**
-     * @param Collection $collection
-     */
     protected $quizId;
     protected $inserted = 0;
 
@@ -23,21 +20,24 @@ class QuizQuestionImport implements ToCollection, WithHeadingRow
         $this->quizId = $quizId;
     }
 
-
     public function collection(Collection $rows)
     {
         DB::beginTransaction();
+
         try {
             if (Question::where('quiz_id', $this->quizId)->exists()) {
                 throw new Exception('Quiz already contains questions');
             }
+
             foreach ($rows as $index => $row) {
+
                 if (empty($row['question'])) {
                     continue;
                 }
 
-                $row =  $row->map(fn($v) => is_string($v) ? trim($v) : $v);
+                $row = $row->map(fn($v) => is_string($v) ? trim($v) : $v);
 
+                // Duplicate check (English)
                 if (
                     Question::where('quiz_id', $this->quizId)
                     ->where('question_text', $row['question'])
@@ -46,36 +46,58 @@ class QuizQuestionImport implements ToCollection, WithHeadingRow
                     continue;
                 }
 
+                // Options
                 $options = [
-                    'A' => $row['option_a'] ?? null,
-                    'B' => $row['option_b'] ?? null,
-                    'C' => $row['option_c'] ?? null,
-                    'D' => $row['option_d'] ?? null,
+                    'A' => [
+                        'en' => $row['option_a'] ?? null,
+                       'hi' => !empty($row['option_a_hi']) ? $row['option_a_hi'] : ($row['option_a'] ?? null),
+                    ],
+                    'B' => [
+                        'en' => $row['option_b'] ?? null,
+                        'hi' => !empty($row['option_b_hi']) ? $row['option_b_hi'] : ($row['option_b'] ?? null),
+                    ],
+                    'C' => [
+                        'en' => $row['option_c'] ?? null,
+                        'hi' => !empty($row['option_c_hi']) ? $row['option_c_hi'] : ($row['option_c'] ?? null),
+                    ],
+                    'D' => [
+                        'en' => $row['option_d'] ?? null,
+                        'hi' => !empty($row['option_d_hi']) ? $row['option_d_hi'] : ($row['option_d'] ?? null),
+                    ],
                 ];
 
-                if (in_array(null, $options, true)) {
-                    throw new Exception('Invalid correct option at row' . ($index + 2));
+                // Validation
+                foreach ($options as $opt) {
+                    if (empty($opt['en'])) {
+                        throw new Exception('Invalid option at row ' . ($index + 2));
+                    }
                 }
 
-                if (!in_array($row['correct_option'], $options, true)) {
-                    throw new Exception('Invalid correct option at row' . ($index + 2));
+                if (!in_array($row['correct_option'], ['A', 'B', 'C', 'D'])) {
+                    throw new Exception('Correct option must be A/B/C/D at row ' . ($index + 2));
                 }
 
+                // Create Question
                 $question = Question::create([
                     'quiz_id' => $this->quizId,
                     'question_text' => $row['question'],
-                    'solution' => $row['solution']
+                     'question_hi' => !empty($row['question_hi']) ? $row['question_hi'] : $row['question'],
+                    'solution' => $row['solution'] ?? null,
                 ]);
 
-                foreach ($options as $key => $text) {
+                // Create Options
+                foreach ($options as $key => $opt) {
                     Option::create([
                         'question_id' => $question->id,
-                        'option_text' => $text,
-                        'is_correct' => ($row['correct_option'] === $text),
+                        'option_text' => $opt['en'],
+                        'option_hi' => $opt['hi'],
+                        'is_correct' => ($row['correct_option'] === $key),
                     ]);
                 }
+
                 $this->inserted++;
             }
+
             DB::commit();
         } catch (Exception $e) {
             DB::rollBack();

@@ -9,6 +9,7 @@ use App\Http\Controllers\api\v1\ReviewController;
 use App\Http\Controllers\api\v1\StudentController;
 use App\Http\Controllers\api\v1\StudentPerformanceController;
 use App\Http\Controllers\api\v1\TradeController;
+use App\Http\Controllers\api\v2\QuizController as V2QuizController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -43,4 +44,8 @@ Route::prefix('v1')->group(function () {
         
         Route::post('/reviews', [ReviewController::class, 'store']);
     });
+});
+
+Route::prefix('v2')->group(function () {
+    Route::get('/quiz/{quiz}', [V2QuizController::class, 'show']);
 });

@@ -19,7 +19,7 @@
 
             <!-- User info section -->
             <li class="user-header bg-primary">
-                <img src="{{ asset('admin/dist/img/user2-160x160.jpg') }}"
+                <img src="{{ asset('admin/dist/img/admin.png') }}"
                      class="img-circle elevation-2" alt="User Image">
 
                 <p>
