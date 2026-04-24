@@ -11,6 +11,7 @@ class QuizController extends Controller
 {
     protected $quizService;
 
+
     public function __construct(QuizService $quizService)
     {
         $this->quizService = $quizService;

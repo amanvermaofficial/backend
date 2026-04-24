@@ -256,11 +256,13 @@ class QuizService
                 return [
                     'question_id' => $question->id,
                     'question_text' => $question->question_text,
+                    'question_hi'=>$question->question_hi,
                     'solution' => $question->solution,
                     'options' => $question->options->map(function ($option) use ($answer) {
                         return [
                             'id' => $option->id,
                             'option_text' => $option->option_text,
+                            'option_hi'=>$option->option_hi,
                             'is_correct' => (bool)$option->is_correct,
                             'is_selected' => $answer?$answer->selected_option_id==$option->id:false,
                         ];
