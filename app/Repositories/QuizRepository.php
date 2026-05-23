@@ -20,11 +20,31 @@ class QuizRepository
 
     public function getQuizzesByCourseTrade($courseTradeId)
     {
+        $studentId = auth('sanctum')->id();
+
         return Quiz::where('is_active', true)
             ->whereHas('courseTrades', function ($q) use ($courseTradeId) {
                 $q->where('course_trade_id', $courseTradeId);
             })
+
             ->withCount('questions')
+
+            // total attempts count
+            ->withCount([
+                'attempts as attempts_count' => function ($q) use ($studentId) {
+                    $q->where('student_id', $studentId);
+                }
+            ])
+
+            // latest attempt
+            ->with([
+                'attempts' => function ($q) use ($studentId) {
+                    $q->where('student_id', $studentId)
+                        ->latest()
+                        ->limit(1);
+                }
+            ])
+
             ->get();
     }
 
@@ -34,11 +54,12 @@ class QuizRepository
         return Quiz::with('questions.options')->find($quizId);
     }
 
-    public function createAttempt($studentId, $quizId, $totalQuestions, $startTime, $endTime)
+    public function createAttempt($studentId, $quizId, $totalQuestions, $startTime, $endTime, $attemptNumber)
     {
         return QuizAttempt::create([
             'student_id' => $studentId,
             'quiz_id' => $quizId,
+            'attempt_number' => $attemptNumber,
             'total_questions' => $totalQuestions,
             'start_time' => $startTime,
             'end_time' => $endTime,
@@ -119,5 +140,32 @@ class QuizRepository
                 'correct_option_id',
                 'is_correct'
             ]);
+    }
+
+    public function getLastAttempt($studentId, $quizId)
+    {
+        return QuizAttempt::where('student_id', $studentId)
+            ->where('quiz_id', $quizId)
+            ->latest()
+            ->first();
+    }
+
+    public function getPreviousAttempts($studentId, $quizId)
+    {
+        return QuizAttempt::where('student_id', $studentId)
+            ->where('quiz_id', $quizId)
+            ->latest()
+            ->take(3)
+            ->get()
+            ->map(function ($attempt) {
+
+                return [
+                    'id' => $attempt->id,
+                    'attempt_number' => $attempt->attempt_number,
+                    'score' => $attempt->score,
+                    'total_questions' => $attempt->total_questions,
+                    'date' => $attempt->created_at->format('d M Y'),
+                ];
+            });
     }
 }

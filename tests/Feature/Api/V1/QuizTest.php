@@ -106,31 +106,48 @@ class QuizTest extends TestCase
             ]);
     }
 
-    public function test_student_cannot_start_completed_quiz()
+    public function test_student_can_reattempt_quiz()
     {
         $student = Student::factory()->create();
+
         [$quiz] = $this->createQuizWithQuestion();
 
+        // First Attempt
         QuizAttempt::create([
             'student_id' => $student->id,
             'quiz_id' => $quiz->id,
+            'attempt_number' => 1,
             'total_questions' => 1,
             'score' => 1,
             'start_time' => now(),
             'end_time' => now(),
         ]);
 
-        $token = $student->createToken('test')->plainTextToken;
+        $token = $student
+            ->createToken('test')
+            ->plainTextToken;
 
-        $response = $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token,
-        ])
-            ->postJson("/api/v1/quizzes/{$quiz->id}/start");
+        // Reattempt
+        $response = $this->withHeader(
+            'Authorization',
+            'Bearer ' . $token
+        )->postJson(
+            "/api/v1/quizzes/{$quiz->id}/start"
+        );
 
         $response->assertStatus(200)
             ->assertJson([
-                'status' => 'COMPLETED'
+                'success' => true,
             ]);
+
+        $this->assertDatabaseHas(
+            'quiz_attempts',
+            [
+                'student_id' => $student->id,
+                'quiz_id' => $quiz->id,
+                'attempt_number' => 2,
+            ]
+        );
     }
 
     public function test_student_can_submit_quiz()
@@ -168,7 +185,7 @@ class QuizTest extends TestCase
         $student = Student::factory()->create();
         [$quiz] = $this->createQuizWithQuestion();
 
-         QuizAttempt::create([
+        QuizAttempt::create([
             'student_id' => $student->id,
             'quiz_id' => $quiz->id,
             'total_questions' => 1,
@@ -182,7 +199,7 @@ class QuizTest extends TestCase
 
         $token = $student->createToken('test')->plainTextToken;
 
-        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
             ->getJson("/api/v1/quizzes/{$quiz->id}/result");
 
         $response->assertStatus(200)
@@ -193,6 +210,5 @@ class QuizTest extends TestCase
                     'correct_answers'
                 ]
             ]);
-
     }
 }

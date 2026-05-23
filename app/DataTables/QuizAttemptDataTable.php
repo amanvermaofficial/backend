@@ -13,8 +13,17 @@ class QuizAttemptDataTable extends DataTable
         return (new EloquentDataTable($query))
             ->addIndexColumn()
 
-            ->addColumn('student', fn($row) => $row->student?->name ?? '-')
-            ->addColumn('quiz', fn($row) => $row->quiz?->title ?? '-')
+            ->filterColumn('student', function ($query, $keyword) {
+                $query->whereHas('student', function ($q) use ($keyword) {
+                    $q->where('name', 'like', "%{$keyword}%");
+                });
+            })
+
+            ->filterColumn('quiz', function ($query, $keyword) {
+                $query->whereHas('quiz', function ($q) use ($keyword) {
+                    $q->where('title', 'like', "%{$keyword}%");
+                });
+            })
 
             ->editColumn(
                 'score',
@@ -37,11 +46,12 @@ class QuizAttemptDataTable extends DataTable
                 return '<div class="btn-group">' . $buttons . '</div>';
             })
 
-            ->editColumn(
-                'created_at',
-                fn($row) =>
-                $row->created_at?->format('d M Y, h:i A')
-            )
+            ->filterColumn('created_at', function ($query, $keyword) {
+                $query->whereRaw(
+                    "DATE_FORMAT(created_at, '%d %b %Y, %h:%i %p') LIKE ?",
+                    ["%{$keyword}%"]
+                );
+            })
 
             ->rawColumns(['actions']);
     }

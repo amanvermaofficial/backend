@@ -72,22 +72,22 @@ class QuizService
                 ];
             }
 
-            $attempt = $this->repo->findAttempt($student->id, $quiz->id);
+            $lastAttempt = $this->repo->getLastAttempt(
+                $student->id,
+                $quiz->id
+            );
 
-            if ($attempt && $attempt->score !== null) {
-                return [
-                    'success' => false,
-                    'status' => 'COMPLETED',
-                    'message' => 'You have already attempted this quiz.'
-                ];
-            }
+            $attemptNumber = $lastAttempt
+                ? $lastAttempt->attempt_number + 1
+                : 1;
 
             $attempt = $this->repo->createAttempt(
                 $student->id,
                 $quiz->id,
                 $quiz->questions()->count(),
                 now(),
-                now()->addSeconds($quiz->duration)
+                now()->addSeconds($quiz->duration),
+                $attemptNumber
             );
 
             return [
@@ -215,6 +215,9 @@ class QuizService
 
             $answers = $this->repo->getAttemptAnswers($attempt->id);
 
+            $previousAttempts = $this->repo
+            ->getPreviousAttempts($student->id, $quiz->id);
+
             return [
                 'success' => true,
                 'message' => 'Quiz result fetched successfully',
@@ -226,7 +229,8 @@ class QuizService
                     'wrong_answers' => $attempt->wrong_answers,
                     'skipped_questions' => $attempt->skipped_questions,
                     'attempted_at' => $attempt->created_at,
-                    'answers' => $answers
+                    'answers' => $answers,
+                    'previous_attempts' => $previousAttempts,
                 ]
             ];
         } catch (Exception $e) {
@@ -237,7 +241,8 @@ class QuizService
         }
     }
 
-    public function getResultReview(Quiz $quiz){
+    public function getResultReview(Quiz $quiz)
+    {
         try {
             $student = Auth::guard('sanctum')->user();
             $attempt = $this->repo->findCompletedAttempt($student->id, $quiz->id);
@@ -251,20 +256,20 @@ class QuizService
             $quizAttemptAnswer = QuizAttemptAnswer::where('quiz_attempt_id', $attempt->id)->get()->keyBy('question_id');
 
             $resultQuestions = $quiz->questions->map(function ($question) use ($quizAttemptAnswer) {
-                $answer = $quizAttemptAnswer[$question->id]??null;
+                $answer = $quizAttemptAnswer[$question->id] ?? null;
 
                 return [
                     'question_id' => $question->id,
                     'question_text' => $question->question_text,
-                    'question_hi'=>$question->question_hi,
+                    'question_hi' => $question->question_hi,
                     'solution' => $question->solution,
                     'options' => $question->options->map(function ($option) use ($answer) {
                         return [
                             'id' => $option->id,
                             'option_text' => $option->option_text,
-                            'option_hi'=>$option->option_hi,
+                            'option_hi' => $option->option_hi,
                             'is_correct' => (bool)$option->is_correct,
-                            'is_selected' => $answer?$answer->selected_option_id==$option->id:false,
+                            'is_selected' => $answer ? $answer->selected_option_id == $option->id : false,
                         ];
                     }),
                 ];
@@ -289,20 +294,21 @@ class QuizService
 
     //version 2 api start
 
-    public function show($quiz,$lang='en'){
+    public function show($quiz, $lang = 'en')
+    {
         $quiz->load('questions.options');
-        
-        return $quiz->questions->map(function($q) use ($lang){
+
+        return $quiz->questions->map(function ($q) use ($lang) {
             return [
                 'id' => $q->id,
-                'question'=> $lang==='hi'? ($q->question_hi ?? $q->question_text): $q->question_text,
-                'options' => $q->options->map(function($opt,$index) use ($lang){
+                'question' => $lang === 'hi' ? ($q->question_hi ?? $q->question_text) : $q->question_text,
+                'options' => $q->options->map(function ($opt, $index) use ($lang) {
                     return [
-                        'key' => chr(65+$index),
-                        'text' => $lang==='hi'? ($opt->option_hi ?? $opt->option_text): $opt->option_text
+                        'key' => chr(65 + $index),
+                        'text' => $lang === 'hi' ? ($opt->option_hi ?? $opt->option_text) : $opt->option_text
                     ];
                 })
-                 
+
             ];
         });
     }
