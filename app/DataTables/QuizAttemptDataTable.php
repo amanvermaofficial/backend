@@ -13,16 +13,12 @@ class QuizAttemptDataTable extends DataTable
         return (new EloquentDataTable($query))
             ->addIndexColumn()
 
-            ->filterColumn('student', function ($query, $keyword) {
-                $query->whereHas('student', function ($q) use ($keyword) {
-                    $q->where('name', 'like', "%{$keyword}%");
-                });
+            ->addColumn('student_name', function ($row) {
+                return $row->student?->name ?? '-';
             })
 
-            ->filterColumn('quiz', function ($query, $keyword) {
-                $query->whereHas('quiz', function ($q) use ($keyword) {
-                    $q->where('title', 'like', "%{$keyword}%");
-                });
+            ->addColumn('quiz_title', function ($row) {
+                return $row->quiz?->title ?? '-';
             })
 
             ->editColumn(
@@ -46,9 +42,15 @@ class QuizAttemptDataTable extends DataTable
                 return '<div class="btn-group">' . $buttons . '</div>';
             })
 
+            ->editColumn('created_at', function ($row) {
+                return $row->created_at
+                    ? $row->created_at->format('d M Y, h:i A')
+                    : '-';
+            })
+
             ->filterColumn('created_at', function ($query, $keyword) {
                 $query->whereRaw(
-                    "DATE_FORMAT(created_at, '%d %b %Y, %h:%i %p') LIKE ?",
+                    "DATE_FORMAT(quiz_attempts.created_at, '%d %b %Y, %h:%i %p') LIKE ?",
                     ["%{$keyword}%"]
                 );
             })
@@ -59,7 +61,7 @@ class QuizAttemptDataTable extends DataTable
 
     public function query(QuizAttempt $model)
     {
-        return $model->with(['student', 'quiz'])->latest();
+        return $model->with(['student', 'quiz'])->latest('quiz_attempts.created_at');
     }
 
     public function html()
@@ -86,11 +88,13 @@ class QuizAttemptDataTable extends DataTable
                 'searchable' => false,
             ],
             [
-                'data' => 'student',
+                'data' => 'student_name',
+                'name' => 'student.name',
                 'title' => 'Student',
             ],
             [
-                'data' => 'quiz',
+                'data' => 'quiz_title',
+                'name' => 'quiz.title',
                 'title' => 'Quiz',
             ],
             [
