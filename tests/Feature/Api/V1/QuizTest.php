@@ -211,4 +211,69 @@ class QuizTest extends TestCase
                 ]
             ]);
     }
+
+    public function test_student_can_resume_quiz_on_refresh()
+    {
+        $student = Student::factory()->create();
+        [$quiz] = $this->createQuizWithQuestion();
+
+        $existingAttempt = QuizAttempt::create([
+            'student_id'      => $student->id,
+            'quiz_id'         => $quiz->id,
+            'attempt_number'  => 1,
+            'total_questions' => 1,
+            'start_time'      => now(),
+            'end_time'        => now()->addSeconds($quiz->duration),
+        ]);
+
+        $token = $student->createToken('test')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->postJson("/api/v1/quizzes/{$quiz->id}/start");
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'Resuming your existing quiz attempt.',
+            ]);
+
+        $this->assertDatabaseCount('quiz_attempts', 1);
+    }
+
+    public function test_student_cannot_submit_already_submitted_quiz()
+    {
+        $student = Student::factory()->create();
+        [$quiz, $question, $correct] = $this->createQuizWithQuestion();
+
+        QuizAttempt::create([
+            'student_id'       => $student->id,
+            'quiz_id'          => $quiz->id,
+            'attempt_number'   => 1,
+            'total_questions'  => 1,
+            'score'            => 1,
+            'correct_answers'  => 1,
+            'wrong_answers'    => 0,
+            'skipped_questions' => 0,
+            'start_time'       => now(),
+            'end_time'         => now(),
+        ]);
+
+        $token = $student->createToken('test')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->postJson("/api/v1/quizzes/{$quiz->id}/submit", [
+                'answers' => [
+                    [
+                        'question_id'        => $question->id,
+                        'selected_option_id' => $correct->id,
+                    ]
+                ]
+            ]);
+
+        $response->assertStatus(500)
+            ->assertJson([
+                'success' => false,
+                'errors' => 'This attempt has already been submitted.', 
+            ]);
+    }
 }

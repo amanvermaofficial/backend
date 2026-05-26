@@ -72,14 +72,27 @@ class QuizService
                 ];
             }
 
-            $lastAttempt = $this->repo->getLastAttempt(
+            $activeAttempt = $this->repo->findIncompleteAttempt(
                 $student->id,
                 $quiz->id
             );
 
-            $attemptNumber = $lastAttempt
-                ? $lastAttempt->attempt_number + 1
-                : 1;
+            if ($activeAttempt) {
+                return [
+                    'success' => true,
+                    'status'  => 'RESUME',
+                    'message' => 'Resuming your existing quiz attempt.',
+                    'data' => [
+                        'quiz'       => $quiz,
+                        'duration'   => $quiz->duration,
+                        'start_time' => $activeAttempt->start_time,
+                        'end_time'   => $activeAttempt->end_time, 
+                    ]
+                ];
+            }
+
+            $lastAttempt = $this->repo->getLastAttempt($student->id, $quiz->id);
+            $attemptNumber = $lastAttempt ? $lastAttempt->attempt_number + 1 : 1;
 
             $attempt = $this->repo->createAttempt(
                 $student->id,
@@ -95,10 +108,10 @@ class QuizService
                 'status'  => 'START',
                 'message' => 'Quiz started successfully',
                 'data' => [
-                    'quiz' => $quiz,
-                    'duration' => $quiz->duration,
+                    'quiz'       => $quiz,
+                    'duration'   => $quiz->duration,
                     'start_time' => $attempt->start_time,
-                    'end_time' => $attempt->end_time
+                    'end_time'   => $attempt->end_time,
                 ]
             ];
         } catch (Exception $e) {
@@ -120,7 +133,9 @@ class QuizService
             if (!$attempt) {
                 throw new Exception('No active quiz attempt found.');
             }
-
+            if ($attempt->score !== null) {
+                throw new Exception('This attempt has already been submitted.');
+            }
             $expired = now()->greaterThan($attempt->end_time);
 
             // Load questions with correct options (NO N+1)
@@ -132,8 +147,6 @@ class QuizService
             // Index answers by question_id
             $answersByQuestion = $answers->keyBy('question_id');
 
-            // Remove old answers if resubmitting
-            $attempt->answers()->delete();
 
             foreach ($questions as $question) {
 
@@ -216,7 +229,7 @@ class QuizService
             $answers = $this->repo->getAttemptAnswers($attempt->id);
 
             $previousAttempts = $this->repo
-            ->getPreviousAttempts($student->id, $quiz->id);
+                ->getPreviousAttempts($student->id, $quiz->id);
 
             return [
                 'success' => true,
