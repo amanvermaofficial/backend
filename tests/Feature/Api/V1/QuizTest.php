@@ -273,7 +273,7 @@ class QuizTest extends TestCase
         $response->assertStatus(500)
             ->assertJson([
                 'success' => false,
-                'errors' => 'This attempt has already been submitted.', 
+                'errors' => 'No active quiz attempt found.', 
             ]);
     }
 }

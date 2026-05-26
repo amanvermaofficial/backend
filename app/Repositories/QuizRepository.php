@@ -111,6 +111,7 @@ class QuizRepository
     {
         return QuizAttempt::where('student_id', $studentId)
             ->where('quiz_id', $quizId)
+            ->whereNull('score')
             ->latest()
             ->first();
     }
